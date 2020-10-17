@@ -90,6 +90,26 @@ jstack
 3.用户和内核模式切换：当操作系统需要在用户模式和内核模式之间进行转换时，需要进行性上下文切换，比如进行系统函数调用
 
 #### <span id="collection">集合</span>
+Java中除了Map结尾的类以外，都实现了Collection接口，以Map结尾的类都实现了Map接口
+![avatar](/static/collection.jpg)
+
+##### ArrayList和LinkedList的区别
+1. 都不保证线程安全
+2. ArrayList底层是Object[]数组，LinkedList底层是双向链表，1.6之前是循环链表，1.7取消了循环
+3. ArrayList采用数组存储，所以插入和删除元素的时间复杂度受元素位置的影响。LinkedList采用链表存储，插入前需获取前置节点的位置，时间复杂度近似为O(n)
+4. LinkedList不支持快速随机访问，快速随机访问就是通过元素的序号快速获取元素对象
+5. ArrayList的空间浪费主要体现在list列表的结尾会预留一定的容量空间，而LinkedList的空间花费则体现在它的每一个元素都需要消耗比ArrayList更多的空间（因为需要存放前驱后驱以及数据）
+
+##### RandomAccess接口
+```java
+public interface RandomAccess {
+}
+```
+RandomAccess接口是一个标识，用来标识实现这个接口的类具有随机访问功能。RandomAccess接口只是标识，并不是说ArrayList实现RandomAccess接口才具备随机访问功能，而是ArrayList接口首先具备快速随机访问功能，所以才标记它实现RandomAccess接口。
+
+##### <span><a href="/Collection/ArrayList.md">ArrayList</a>
+
+
 
 
 #### <span id="servlet"><a href="/JavaWeb/Servlet.md">Servlet</a></span>
