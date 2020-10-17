@@ -109,6 +109,13 @@ RandomAccess接口是一个标识，用来标识实现这个接口的类具有�
 
 ##### <span><a href="/Collection/ArrayList.md">ArrayList</a>
 
+##### TreeMap和HashMap的区别
+TreeMap和HashMap都继承自AbstractMap，但TreeMap还实现了SortedMap和NavigableMap。
+![avatar](/static/TreeMap继承结构.png)
+NavigableMap接口让TreeMap有了对集合内元素的搜索的能力。
+实现SortMap接口让TreeMap有了对集合中的元素根据键排序的能力。默认按Key的升序排序，不过也可以指定排序的比较器。
+
+##### <a href="/Collection/HashMap.md">HashMap</a>
 
 
 
