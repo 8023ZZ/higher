@@ -107,3 +107,93 @@ final V putVal(int hash, K key, V value, boolean onlyIfAbsent,
 ```
 
 ## resize方法
+进行扩容，会伴随一次重新hash分配，并且会遍历hash表中所有的元素，编码过程中需要尽量避免
+
+``` java
+final Node<K, V>[] resize() {
+    Node<K, V> oldTab = table;
+    int oldCap = (oldTab == null) ? 0 : oldTab.length;
+    int oldThr = threshold;
+    int newCap, newThr = 0;
+    if (oldCap > 0) {
+        // 超过最大值则不进行扩容，只能进行碰撞
+        if (old >= MAXIMUM_CAPACITY) {
+            threshold = Integer.MAX_VALUE;
+            return oldTab;
+        }
+        // 没超过最大值，则扩充为原来的2倍
+        else if ((newCap = oldCap << 1) < MAXIMUM_CAPACITY && oldCap >= DEFAULT_INITIAL_CAPACITY)
+            newThr = oldThr << 1;
+    }
+    // 初始化容量
+    else if (oldThr > 0)
+        newCap = oldThr;
+    else {
+        newCap = DEFAULT_INITIAL_CAPACITY;
+        newThr = (int)(DEFAULT_LOAD_FACTOR * DEFAULT_INITIAL_CAPACITY);
+    }
+    // 重新计算resize上限
+    if (newThr == 0) {
+        float ft = (float)newCap * loadFactor;
+        newThr = (newCap < MAXIMUM_CAPACITY && ft < (float)MAXIMUM_CAPACITY ? (int)ft : Integer.MAX_VALUE);
+    }
+    threshold = newThr;
+    @SuppressWarnings({"rawtypes","unchecked"})
+        Node<K,V>[] newTab = (Node<K,V>[])new Node[newCap];
+    table = newTab;
+    if (oldTab != null) {
+        // 把每个bucket都移动到新的buckets中
+        for (int j = 0; j < oldCap; ++j) {
+            Node<K,V> e;
+            if ((e = oldTab[j]) != null) {
+                oldTab[j] = null;
+                if (e.next == null)
+                    newTab[e.hash & (newCap - 1)] = e;
+                else if (e instanceof TreeNode)
+                    ((TreeNode<K,V>)e).split(this, newTab, j, oldCap);
+                else { 
+                    Node<K,V> loHead = null, loTail = null;
+                    Node<K,V> hiHead = null, hiTail = null;
+                    Node<K,V> next;
+                    do {
+                        next = e.next;
+                        // 原索引
+                        if ((e.hash & oldCap) == 0) {
+                            if (loTail == null)
+                                loHead = e;
+                            else
+                                loTail.next = e;
+                            loTail = e;
+                        }
+                        // 原索引+oldCap
+                        else {
+                            if (hiTail == null)
+                                hiHead = e;
+                            else
+                                hiTail.next = e;
+                            hiTail = e;
+                        }
+                    } while ((e = next) != null);
+                    // 原索引放到bucket里
+                    if (loTail != null) {
+                        loTail.next = null;
+                        newTab[j] = loHead;
+                    }
+                    // 原索引+oldCap放到bucket里
+                    if (hiTail != null) {
+                        hiTail.next = null;
+                        newTab[j + oldCap] = hiHead;
+                    }
+                }
+            }
+        }
+    }
+    return newTab;
+}
+```
+
+## HashMap的长度为什么是2的幂次方
+数组下标的计算方式为 (n-1)&hash，而取余(%)操作中如果除数是2的幂次则等价于与其除数减一的与(&)操作，也就是hash%length == hash&(length-1) 成立的前提是length是2的n次方。并且采用二进制操作&，相对于%能有效提升效率，所以HashMap的长度是2的幂次方。
+
+## HashMap多线程操作死循环问题
+主要原因在于并发下的Rehash会造成元素之间形成一个循环链表。1.8后解决了这个问题，但还会存在比如数据丢失等问题。
