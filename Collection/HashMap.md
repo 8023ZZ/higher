@@ -197,7 +197,8 @@ final Node<K, V>[] resize() {
 
 ## HashMap多线程操作死循环问题
 主要原因在于并发下的Rehash会造成元素之间形成一个循环链表。1.8后解决了这个问题，但还会存在比如数据丢失等问题。
-循环链表出现的原因：1.rehash是头插法，造成了逆序；2.第一个线程先保存next节点后挂起，第二个线程执行结果导致next后面追加了e，第一个线程再执行，先头插e，在头插next，由于第二线程导致next后面有e，所以继续头插，e插到next前面，出现循环链表死循环。
+
+两线程并发执行transfer()方法时：
 
 state 1:
 thread1 resize前半段: e -> next  cup时间片到
@@ -206,4 +207,5 @@ thread2 完成rehash，next -> e
 state 3:
 thread1 resize后半段： step1.next -> e step2.e -> next -> e
 
+循环链表出现的原因：1.rehash是头插法，造成了逆序；2.第一个线程先保存next节点后挂起，第二个线程执行结果导致next后面追加了e，第一个线程再执行，先头插e，在头插next，由于第二线程导致next后面有e，所以继续头插，e插到next前面，出现循环链表死循环。
 jdk1.8修改为尾插法后修复了这个问题。
