@@ -59,5 +59,14 @@ private Segment<K,V> ensureSegment(int k) {
 ```
 
 1. 计算put时的key的位置，获取指定位置的segment
-2. 如果指定位置的segment为空，则初始化这个segment
-    2.1 检查计算
+2. 如果指定位置的segment为空，则初始化这个segment:
+    2.1 检查计算得到位置的Segment是否为null；
+    2.2 为null继续初始化，使用Segment[0]的容量和负载因子创建一个HashEntry数组
+    2.3 再次检查计算得到的指定位置的Segment是否为null
+    2.4 使用创建的HashEntry数组初始化这个Segment
+    2.5 自旋判断计算得到的指定位置的Segment是否为null，使用CAS算法在这个位置赋值为Segment
+3. Segment.put插入key，value值
+
+``` java
+
+```
