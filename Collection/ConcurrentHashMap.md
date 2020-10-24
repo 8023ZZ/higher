@@ -68,5 +68,199 @@ private Segment<K,V> ensureSegment(int k) {
 3. Segment.put插入key，value值
 
 ``` java
+final V put(K key, int hash, V value, boolean onlyIfAbsent) {
+    // 获取ReentrantLock独占锁，获取不到，scanAndLockForPut获取
+    HashEntry<K, V> node = tryLock() ? null : scanAndLockForPut(key, hash, value);
+    V oldValue;
+    try {
+        HashEntry<K,V>[] tab = table;
+        // 计算要put的数据位置
+        int index = (tab.length - 1) & hash;
+        // CAS获取index坐标的值
+        HashEntry<K, V> first = entryAt(tab, index);
+        for (HashEntry<K,V> e = first;;) {
+            if (e != null) {
+                //检查key是否已存在，如果存在则遍历链表寻找位置，找到后替换 value
+                K k;
+                if ((k = e.key) == key ||
+                    (e.hash == hash && key.equals(k))) {
+                    oldValue = e.value;
+                    if (!onlyIfAbsent) {
+                        e.value = value;
+                        ++modCount;
+                    }
+                    break;
+                }
+                e = e.next;
+            }
+            else {
+                // first 有值没说明 index 位置已经有值了，有冲突，链表头插法。
+                if (node != null)
+                    node.setNext(first);
+                else
+                    node = new HashEntry<K,V>(hash, key, value, first);
+                int c = count + 1;
+                // 容量大于扩容阀值，小于最大容量，进行扩容
+                if (c > threshold && tab.length < MAXIMUM_CAPACITY)
+                    rehash(node);
+                else
+                    // index 位置赋值 node，node 可能是一个元素，也可能是一个链表的表头
+                    setEntryAt(tab, index, node);
+                ++modCount;
+                count = c;
+                oldValue = null;
+                break;
+            }
+        }
+    } finally {
+        unlock();
+    }
+    return oldValue;
+}
+```
 
+Segment继承了ReentrantLock，所以Segment内部可以方便的获取锁。
+1. tryLock()获取锁，获取不到使用scanAndLockForPut方法继续获取；
+2. 计算put的数据要放入的index位置，然后获取这个位置上的HashEntry；
+3. 遍历put新元素，遍历的原因是因为这里获取到的HashEntry可能是一个空元素，也可能是链表已存在；
+    3.1 如果这个位置上的HashEntry不存在：如果当前容量大于扩容阈值，小于最大容量，进行扩容，然后直接头插法插入
+    3.2 如果这个位置上的HashEntry存在：判断链表当前元素Key和Hash值是否和要put的key和hash值一致，一致则替换值；不一致则获取链表的下一节点，直到发现相同的值替换，或者链表遍历完毕没有相同的，此时如果当前容量大于扩容阈值，小于最大容量，进行扩容，然后直接头插法插入
+4. 如果要插入的位置之前就已经存在，替换后返回旧值，否则返回null；
+
+其中scanAndLockForPut的操作就是不断的自选tryLock()获取锁，当自旋次数大于指定次数时，使用lock()阻塞直到获取锁。
+
+## 扩容rehash
+ConcurrentHashMap扩容只会扩到原来的两倍，老数组里的数据迁移到新数组中，位置要么不变，要么变为index + oldSize，参数里的node会在扩容后使用头插法插到指定位置。
+
+# JDK 1.8
+## 存储结构
+![avatar](/static/concurrenthashmap1.8.png)
+不再是Segment数组 + HashEntry数组 + 链表，而是转变为Node数组 + 链表/红黑树。当冲突链表达到一定长度时，链表会转换为红黑树，并发控制使用Synchronized和CAS来操作
+
+## 初始化initTable
+``` java
+private final Node<K,V>[] initTable() {
+    Node<K,V>[] tab;int sc;
+    while ((tab = table) == null || tab.length == 0) {
+        // 如果sizeCtl < 0，说明另外的线程执行CAS成功，正在进行初始化
+        if ((sc = sizeCtl) < 0)
+            // 让出CPU时间片
+            Thread.yield();
+        else if (U.compareAndSwapInt(this, SIZECTL, sc, -1)) {
+            try {
+                if ((tab = table) == null || tab.length == 0) {
+                    int n = (sc > 0) ? sc : DEFAULT_CAPACITY;
+                    @SuppressWarnings("unchecked")
+                    Node<K,V>[] nt = (Node<K,V>[])new Node<?,?>[n];
+                    table = tab = nt;
+                    sc = n - (n >>> 2);
+                }
+            } finally {
+                sizeCtl = sc;
+            }
+            break;
+        }
+    }
+    return tab;
+}   
+```
+ConcurrentHashMap初始化是通过自旋和CAS操作实现的，其中sizeCtl的值决定着当前的初始化状态
+-1 说明正在初始化
+-N 说明有n-1个线程正在进行扩容
+如果table没有初始化则表示table的初始化大小，如果已经初始化则表示table的容量的3/4
+
+
+## put
+``` java
+public V put(K key, V value){
+    return putVal(key, value, false);
+}
+
+// 添加一对键值对的时候，先判断保存这些键值对的数组是否已经初始化
+// 如果没有的话就初始化数组
+// 然后计算hash，确认放置的数组的位置
+// 如果数组对应位置为空则直接添加，如果不为空则取出这个节点
+// 如果取出的节点的hash值是MOVED(-1)的话，则表示当前正在对这个数组扩容，复制到新的数组，则当前线程也去帮助复制
+// 最后一种情况是，如果这个节点不为空，也不在扩容，则通过synchronized来加锁，进行添加
+//      然后判断当前去除的节点位置存放的是链表还是树
+//      如果是链表的话则遍历整个链表，直到取出到相同的key，否则尾插法插入链表
+//      如果是树的话调用putTreeVal把这个方法添加到树中
+// 添加完成后，判断该节点处共有多少个节点（添加前的个数），达到8个则转成红黑树
+final V putVal(K key, V value, boolean onlyIfAbsent) {
+    if (key == null || value == null)  
+        throw new NullPointerException();
+    int hash = spread(key.hashCode());    //取得key的hash值
+    int binCount = 0;    //用来计算在这个节点总共有多少个元素，用来控制扩容或者转移为树
+    for (Node<K,V>[] tab = table;;) {    //            Node<K,V> f; int n, i, fh;
+        if (tab == null || (n = tab.length) == 0)    
+            tab = initTable();    //第一次put的时候table没有初始化，则初始化table
+        else if ((f = tabAt(tab, i = (n - 1) & hash)) == null) {    //通过哈希计算出一个表中的位置因为n是数组的长度，所以(n-1)&hash肯定不会出现数组越界
+            if (casTabAt(tab, i, null,        //如果这个位置没有元素的话，则通过cas的方式尝试添加，注意这个时候是没有加锁的
+                new Node<K,V>(hash, key, value, null)))        //创建一个Node添加到数组中区，null表示的是下一个节点为空
+                    break;                   // no lock when adding to empty bin
+        }
+        /*
+         * 如果检测到某个节点的hash值是MOVED，则表示正在进行数组扩张的数据复制阶段，
+         * 则当前线程也会参与去复制，通过允许多线程复制的功能，一次来减少数组的复制所带来的性能损失
+          */
+        else if ((fh = f.hash) == MOVED)    
+            tab = helpTransfer(tab, f);
+        else {
+            /*
+             * 如果在这个位置有元素的话，就采用synchronized的方式加锁，
+             *     如果是链表的话(hash大于0)，就对这个链表的所有元素进行遍历，
+             *         如果找到了key和key的hash值都一样的节点，则把它的值替换到
+             *         如果没找到的话，则添加在链表的最后面
+             *  否则，是树的话，则调用putTreeVal方法添加到树中去
+             *  
+             *  在添加完之后，会对该节点上关联的的数目进行判断，
+             *  如果在8个以上的话，则会调用treeifyBin方法，来尝试转化为树，或者是扩容
+             */
+            V oldVal = null;
+            synchronized (f) {
+                if (tabAt(tab, i) == f) {        //再次取出要存储的位置的元素，跟前面取出来的比较
+                    if (fh >= 0) {                //取出来的元素的hash值大于0，当转换为树之后，hash值为-2
+                        binCount = 1;            
+                        for (Node<K,V> e = f;; ++binCount) {    //遍历这个链表
+                            K ek;
+                            if (e.hash == hash &&        //要存的元素的hash，key跟要存储的位置的节点的相同的时候，替换掉该节点的value即可
+                                    ((ek = e.key) == key ||
+                                     (ek != null && key.equals(ek)))) {
+                                    oldVal = e.val;
+                                    if (!onlyIfAbsent)        //当使用putIfAbsent的时候，只有在这个key没有设置值得时候才设置
+                                        e.val = value;
+                                    break;
+                                }
+                                Node<K,V> pred = e;
+                                if ((e = e.next) == null) {    //如果不是同样的hash，同样的key的时候，则判断该节点的下一个节点是否为空，
+                                    pred.next = new Node<K,V>(hash, key,        //为空的话把这个要加入的节点设置为当前节点的下一个节点
+                                                              value, null);
+                                    break;
+                                }
+                            }
+                        }
+                        else if (f instanceof TreeBin) {    //表示已经转化成红黑树类型了
+                            Node<K,V> p;
+                            binCount = 2;
+                            if ((p = ((TreeBin<K,V>)f).putTreeVal(hash, key,    //调用putTreeVal方法，将该元素添加到树中去
+                                                           value)) != null) {
+                                oldVal = p.val;
+                                if (!onlyIfAbsent)
+                                    p.val = value;
+                            }
+                        }
+                    }
+                }
+                if (binCount != 0) {
+                    if (binCount >= TREEIFY_THRESHOLD)    //当在同一个节点的数目达到8个的时候，则扩张数组或将给节点的数据转为tree
+                        treeifyBin(tab, i);    
+                    if (oldVal != null)
+                        return oldVal;
+                    break;
+                }
+            }
+        }
+    addCount(1L, binCount);    //计数
+    return null;
+}
 ```
