@@ -264,3 +264,20 @@ final V putVal(K key, V value, boolean onlyIfAbsent) {
     return null;
 }
 ```
+1. 根据key计算出hashcode
+2. 判断是否需要进行初始化
+3. 即为当前key定位出的Node，如果为空表示当前位置可以写入数据，利用CAS尝试写入，失败则自旋保证成功
+4. 如果当前位置的hashcode == MOVED == -1，则需要进行扩容
+5. 如果都不满足，则利用synchronized锁写入数据
+6. 如果数量大于阈值则转红黑树
+
+## get
+1. 根据hash值计算位置
+2. 查找到指定位置，如果头节点就是要找的，直接返回他的value
+3. 如果头节点hash值小于0，说明正在扩容或者是红黑树，查找之
+4. 如果是链表则遍历查找
+
+# 总结
+JDK1.7中ConcurrentHashMap使用的分段锁，也就是每一个Segment上同时只有一个线程可以操作，每一个Segment都是类似于HashMap的结构，可以扩容或者将冲突转链表。但是Segment的个数一旦初始化就不能改变。
+
+JDK1.8中ConcurrentHashMap使用的是Synchronized锁加CAS机制，结构进化成了Node数组+链表/红黑树，Node是一个类似于HashEntry的结构，冲突到达一定大小后会转红黑树，小于一定大小后退回链表。
