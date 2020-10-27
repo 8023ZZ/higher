@@ -89,6 +89,18 @@ jstack
 2.终端处理：发生中断时，硬件会切换上下文
 3.用户和内核模式切换：当操作系统需要在用户模式和内核模式之间进行转换时，需要进行性上下文切换，比如进行系统函数调用
 
+##### 获取class的四种方式
+1. 通过.class
+Class a = A.class;
+2. 通过forName()静态方法传入类路径获取
+Class a = Class.forName("cn.com.src.a");
+默认会进行初始化
+3. 通过对象实例的getClass()方法
+Class a = e.getClass();
+4. 通过类加载器 xxxClassLoader.loadClass()传入类路径获取
+class clazz = ClassLoader.loadClass("cn.com.src.a");
+通过类加载器获得Class对象不会进行初始化，静态块和静态对象不会进行执行
+
 #### <span id="collection">集合</span>
 Java中除了Map结尾的类以外，都实现了Collection接口，以Map结尾的类都实现了Map接口
 ![avatar](/static/collection.jpg)
