@@ -101,6 +101,8 @@ Class a = e.getClass();
 class clazz = ClassLoader.loadClass("cn.com.src.a");
 通过类加载器获得Class对象不会进行初始化，静态块和静态对象不会进行执行
 
+##### <a href="/Base/IO.md">NIO、AIO和BIO</a>
+
 #### <span id="collection">集合</span>
 Java中除了Map结尾的类以外，都实现了Collection接口，以Map结尾的类都实现了Map接口
 ![avatar](/static/collection.jpg)
