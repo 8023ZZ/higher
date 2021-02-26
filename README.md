@@ -39,6 +39,9 @@ https://shishan100.gitee.io/docs/#/
 ***
 ### [操作系统](#systemGen) 
 ***
+### 设计
+##### DDD领域驱动设计
+***
 
 
 
@@ -142,6 +145,8 @@ NavigableMap接口让TreeMap有了对集合内元素的搜索的能力。
 ##### <a href="/Collection/HashMap.md">HashMap</a>
 
 ##### <a href="/Collection/ConcurrentHashMap.md">ConcurrentHashMap</a>
+
+#### <span id="aqs"><a href="/AQS/aqs.md">同步器</a></span>
 ***
 ### 框架
 ***

@@ -281,3 +281,8 @@ final V putVal(K key, V value, boolean onlyIfAbsent) {
 JDK1.7中ConcurrentHashMap使用的分段锁，也就是每一个Segment上同时只有一个线程可以操作，每一个Segment都是类似于HashMap的结构，可以扩容或者将冲突转链表。但是Segment的个数一旦初始化就不能改变。
 
 JDK1.8中ConcurrentHashMap使用的是Synchronized锁加CAS机制，结构进化成了Node数组+链表/红黑树，Node是一个类似于HashEntry的结构，冲突到达一定大小后会转红黑树，小于一定大小后退回链表。
+
+## ConcurrentHashMap实现线程安全的底层原理是什么
+JDK1.8以前是分段锁，多个数组分段加锁，一个数组一个锁ReentrantLock
+
+JDK1.8以后，细化锁粒度，一个数组，put的时候如果为null则进行CAS，如果失败说明有人了，此时synchronized对数组元素加锁，然后基于链表或者红黑树插入自己的数据。如果不为null（因为此时数组位置存放的是链表或红黑树的引用，且出现概率很小）则直接synchronized锁然后基于链表或者红黑树插入自己的数据。只有对数组里同一个位置的元素进行操作时，才会加锁串行化处理；如果是对数组里不同的位置元素进行操作，那么可以正常并发处理。
