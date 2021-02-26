@@ -35,7 +35,7 @@ https://shishan100.gitee.io/docs/#/
 ### 网络
 ##### [计算机网络](#net)
 ##### [Http](#tttp)
-##### [TCP/UDP](#tcp/udp)
+##### [Socket](#socket)
 ***
 ### [操作系统](#systemGen) 
 ***
@@ -154,5 +154,7 @@ NavigableMap接口让TreeMap有了对集合内元素的搜索的能力。
 ***
 ### 网络
 #### <span id="net"><a href="/Net/net.md">计算机网络</a></span>
+#### <span id="net"><a href="/Net/http.md">Http</a></span>
+#### <span id="socket"><a href="/Net/socket.md">Socket</a></span>
 ***
 ### <span id="systemGen"><a href="/System/system.md">操作系统</a></span>
