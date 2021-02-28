@@ -14,8 +14,8 @@ https://shishan100.gitee.io/docs/#/
 ##### [JVM](#JVM)
 ***
 ### 框架
-##### [Spring](#spring)
-##### [SpringBoot](#springboot)
+##### [Spring](#Spring)
+##### [SpringBoot](#SpringBoot)
 ##### [Jfinal](#jfinal)
 ***
 ### Java Web
@@ -152,6 +152,8 @@ NavigableMap接口让TreeMap有了对集合内元素的搜索的能力。
 #### <span id="JVM"><a href="/JVM/JVM.md">JVM</a></span>
 ***
 ### 框架
+#### <span id="Spring"><a href="/Spring/spring.md">Spring</a></span>
+#### <span id="SpringBoot"><a href="/Spring/springBoot.md">SpringBoot</a></span>
 ***
 ### JavaWeb
 #### <span id="servlet"><a href="/JavaWeb/Servlet.md">Servlet</a></span>
