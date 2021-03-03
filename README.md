@@ -43,6 +43,8 @@ https://shishan100.gitee.io/docs/#/
 ### 设计
 ##### [DDD领域驱动设计](#DDD)
 ***
+### [项目问题整理](#problem)
+***
 
 
 
@@ -168,3 +170,5 @@ NavigableMap接口让TreeMap有了对集合内元素的搜索的能力。
 #### <span id="socket"><a href="/Net/socket.md">Socket</a></span>
 ***
 ### <span id="systemGen"><a href="/System/system.md">操作系统</a></span>
+***
+### <span id="problem"><a href="/Problem/problem.md">项目问题整理</a></span>
