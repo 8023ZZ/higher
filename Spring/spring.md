@@ -1,7 +1,10 @@
 ### 对 Spring 的 IOC 的理解
 控制反转，依赖注入
+
 tomcat 启动的时候会直接启动 spring 容器，spring 容器根据 xml 配置或者注解，去实例化bean对象（@Controller、@Service、@Component、@Configuration+@Bean），然后根据 xml 配置或者注解(@Autowired、@Rescource)进行以来注入
+
 底层实现原理是通过反射对类创建对象，完成类与类之间的彻底解耦
+
 注入接口的原因：1.注入接口更加灵活 2.注入实现类会使用CGLIB代理，注入接口使用JDK动态代理，提高了实现类的扩展性和可替换性
 
 ![avatar](/static/springIOC.png)
@@ -15,19 +18,24 @@ IOC 初始化过程：
 
 ### 对 Spring 的 AOP 的理解
 Aspect，通过动态代理的方式来生成其代理对象在方法执行前后加入自己的逻辑，针对的是 Spring 容器管理的 Bean
+
 代理方式：JDK + CGLIB
+
 AOP 分为两类：
 * 静态 AOP，在编译阶段对程序源代码进行更改，生成了静态的AOP代理类（生成的*.class文件已经被修改），比如 AspectJ
 * 动态 AOP，在运行阶段动态生成代理对象，JDK + CGLIB，如Spring AOP
 
 Spring AOP 不能拦截对对象字段的修改，也不支持构造器连接点，无法在 Bean 创建时通知应用
 
-AspectJ 本身是不支持运行期织入的，日常使用时候，我们经常回听说，spring 使用了aspectJ实现了aop，听起来好像spring的aop完全是依赖于aspectJ其实spring对于aop的实现是通过动态代理（jdk的动态代理或者cglib的动态代理），它只是使用了aspectJ的Annotation，并没有使用它的编译期和织入器，Spring AOP 只支持方法级别的切面
+AspectJ 本身是不支持运行期织入的，日常使用时候，我们经常回听说，spring 使用了aspectJ实现了aop，听起来好像spring的aop完全是依赖于aspectJ，其实spring对于aop的实现是通过动态代理（jdk的动态代理或者cglib的动态代理），它只是使用了aspectJ的Annotation，并没有使用它的编译期和织入器，Spring AOP 只支持方法级别的切面
 
 ### JDK 动态代理和 CGLIB 动态代理
 动态创建一个代理类，然后创建这个代理类的实例对象，在实例对象里引用原来的类的方法，代理类负责进行一些代码上的增强
+
 JDK 动态代理是生成一个同样接口的代理类，构造一个实例对象
+
 CGLIB 动态代理是直接生成类的子类，可以动态生成字节码，覆盖原来的方法，在方法里加入加强的代码
+
 CGLIB 创建动态代理对象比 JDK 动态代理对象的性能高，但是创建对象的时间长
 
 ### Spring 中的 Bean 是线程安全的吗
@@ -42,6 +50,7 @@ Spring 容器中的 bean 可以分为5个范围：
 
 ### Spring 中的事务以及事务传播机制
 如果使用 @Transcational 注解，此时Spring 会开启 AOP，方法执行之前先开启事务，执行完毕之后根据方法是否报错来决定回滚还是提交事务
+
 主要分为三类，A和B需要在同一事务中；A和B不能在同一事物中；嵌套型事务 NESTED
 
 * PROPAGATION_REQUIRED: 如果当前没有事务，就创建一个新事物，如果当前存在事务，那么就加入该事务。这个设置为默认设置
@@ -51,9 +60,10 @@ Spring 容器中的 bean 可以分为5个范围：
 * PROPAGETION_NOT_SUPPORT: 以非事务方式执行操作，如果当前存在事务，就把当前事务挂起
 * PROPAGATION_NEVER：以非事务方式执行，如果当前存在事务，则抛出异常
 * PROPAGATION_NESTED: 如果当前存在事务，则在嵌套事务内执行，如果当前没有事务，则按REQUIRED属性执行
+
 嵌套事务，外层事务如果回滚会导致内层事务也会滚，但是内层事务如果回滚，仅仅回滚自己的代码
 
-私有方法不能开启事务，因为 JDK 代理不支持 private 方法。JDK的动态代理。只有被动态代理直接调用时才会产生事务。在SpringIoC容器中返回的调用的对象是代理对象而不是真实的对象。而这里的this是EmployeeService真实对象而不是代理对象。
+私有方法不能开启事务，因为 JDK 代理不支持 private 方法。JDK的动态代理，只有被动态代理直接调用时才会产生事务。在SpringIoC容器中返回的调用的对象是代理对象而不是真实的对象。而方法中的 this 是真实对象而不是代理对象。
 
 ### Spring 核心架构
 Spring 核心点主要是IOC和AOP，核心技术是反射和代理
@@ -82,6 +92,7 @@ Bean不再被需要时进行清理，调用DiaposableBean接口的destroy()方�
 ### Spring Bean 循环依赖
 单例作用域的bean，通过构造器注入时会产生循环依赖问题
 因为创建实例对象无法完成，而通过set/get注入不会出问题，因为先创建了实例，spring会缓存一下创建好的bean，然后再去注入到对应依赖的bean中
+
 增加了三级缓存：
 * singletonFactories ： 单例对象工厂的cache
 * earlySingletonObjects ：提前暴光的单例对象的Cache
@@ -97,7 +108,7 @@ Bean不再被需要时进行清理，调用DiaposableBean接口的destroy()方�
 * 模板方法模式：定义一个操作中的算法的骨架，而将一些步骤延迟到子类中。 模板方法使得子类可以不改变一个算法的结构即可重定义该算法的某些特定步骤的实现方式（AQS）。Spring 中 jdbcTemplate、hibernateTemplate 等以 Template 结尾的对数据库操作的类，它们就使用到了模板模式。一般情况下，我们都是使用继承的方式来实现模板模式，但是 Spring 并没有使用这种方式，而是使用Callback 模式与模板方法模式配合，既达到了代码复用的效果，同时增加了灵活性。
 * 观察者模式：观察者模式是一种对象行为型模式。它表示的是一种对象与对象之间具有依赖关系，当一个对象发生改变的时候，这个对象所依赖的对象也会做出反应。Spring事件驱动模型=定义(监听者+发布者+事件)
 * 适配器模式：适配器模式(Adapter Pattern) 将一个接口转换成客户希望的另一个接口，适配器模式使接口不兼容的那些类可以一起工作，其别名为包装器(Wrapper)。DispatcherServlet根据请求信息调用 HandlerMapping，解析请求对应的 Handler。解析到对应的 Handler（也就是我们平常说的 Controller 控制器）后，开始由HandlerAdapter 适配器处理。HandlerAdapter 作为期望接口，具体的适配器实现类用于对目标类进行适配，Controller 作为需要适配的类。
-* 装饰器模式：装饰者模式可以动态地给对象添加一些额外的属性或行为。相比于使用继承，装饰者模式更加灵活。简单点儿说就是当我们需要修改原有的功能，但我们又不愿直接去修改原有的代码时，设计一个Decorator套在原有代码外面。其实在 JDK 中就有很多地方用到了装饰者模式，比如 InputStream家族，InputStream 类下有 FileInputStream (读取文件)、BufferedInputStream (增加缓存,使读取文件速度大大提升)等子类都在不修改InputStream 代码的情况下扩展了它的功能。Spring 中配置 DataSource 的时候，DataSource 可能是不同的数据库和数据源。我们能否根据客户的需求在少修改原有类的代码下动态切换不同的数据源？这个时候就要用到装饰者模式。Spring 中用到的包装器模式在类名上含有 Wrapper或者 Decorator。这些类基本上都是动态地给一个对象添加一些额外的职责
+* 装饰器模式：装饰者模式可以动态地给对象添加一些额外的属性或行为。相比于使用继承，装饰者模式更加灵活。简单点儿说就是当我们需要修改原有的功能，但我们又不愿直接去修改原有的代码时，设计一个Decorator套在原有代码外面。其实在 JDK 中就有很多地方用到了装饰者模式，比如 InputStream家族，InputStream 类下有 FileInputStream (读取文件)、BufferedInputStream (增加缓存,使读取文件速度大大提升)等子类都在不修改InputStream 代码的情况下扩展了它的功能。Spring 中配置 DataSource 的时候，DataSource 可能是不同的数据库和数据源。我们能否根据客户的需求在少修改原有类的代码下动态切换不同的数据源，这个时候就要用到装饰者模式。Spring 中用到的包装器模式在类名上含有 Wrapper或者 Decorator。这些类基本上都是动态地给一个对象添加一些额外的职责
 
 ### SpringMVC 的核心架构
 1. tomcat工作线程将请求转交给 Spring MVC 框架的DispatcherServlet（前端控制器）
