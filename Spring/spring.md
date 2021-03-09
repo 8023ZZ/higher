@@ -119,3 +119,20 @@ Bean不再被需要时进行清理，调用DiaposableBean接口的destroy()方�
     jsp： 返回页面模板名称，spring mvc使用模板技术对前端页面进行渲染
     json： 直接返回json对象
 6. 把渲染以后的 html 页面返回给浏览器进行显示
+
+### Spring IOC 的初始化过程
+ApplicationContext 继承自 beanFactory，但是他不是 BeanFactory 的实现类，而是说其内部持有了一个 BeanFactory。以后所有跟 BeanFactory 相关的操作其实是委托给这个实例来进行处理
+1. ClassPathXmlApplicationContext 的 refresh（）方法，refresh 方法可以重建 ApplicationContexxt，会将原来的 ApplicationContext 销毁，然后再重新执行初始化操作
+2. obtailFreshBeanFactory ，初始化 BeanFactory，解析 BeanDefinatiion，注册到 BeanFactory 中
+3. preparebeanFactory，手动注册一些特殊的Bean
+4. 设置 BeanFactory 的类加载器
+5. Bean 如果实现了 BeanFactoryPostProcessor，会调用 postProcessorBeanFactory，此时所有的 Bean 都加载并注册完成了，但是还没开始初始化。可以添加一些特殊的 BeanFactoryPostProcessor 的实现类或者做些什么事
+6. 注册 BeanPostProcessor
+7. 初始化 ApplicationContext 的 MessageSource
+8. 初始化 ApplicationContext 的事件广播器
+9. 模版模式钩子方法 onRefresh，具体的子类可以在这里初始化一些特殊的 Bean （在初始化 singleton beans 之前）
+10. 注册事件监听器，实现 ApplicationListener 接口
+11. finishBeanFactoryInitialization（beanFactory）- createBeanInstance实例化所有 singleton beans，lazy-init 除外
+12. populateBean 方法进行属性设值，处理依赖
+13. 执行回调，如果实现了 Aware 接口，回调invokeAwareMethods方法，回调 BeanPostProcessor 的 postProcessBeforeInitialization 方法 ，执行 init-method，回调 BeanPostProcessor 的 postProcessAfterInitialization 方法
+14. 广播事件 ApplicationContext 初始化完成
