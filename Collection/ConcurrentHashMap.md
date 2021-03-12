@@ -285,4 +285,37 @@ JDK1.8中ConcurrentHashMap使用的是Synchronized锁加CAS机制，结构进化
 ## ConcurrentHashMap实现线程安全的底层原理是什么
 JDK1.8以前是分段锁，多个数组分段加锁，一个数组一个锁ReentrantLock
 
-JDK1.8以后，细化锁粒度，一个数组，put的时候如果为null则进行CAS，如果失败说明有人了，此时synchronized对数组元素加锁，然后基于链表或者红黑树插入自己的数据。如果不为null（因为此时数组位置存放的是链表或红黑树的引用，且出现概率很小）则直接synchronized锁然后基于链表或者红黑树插入自己的数据。只有对数组里同一个位置的元素进行操作时，才会加锁串行化处理；如果是对数组里不同的位置元素进行操作，那么可以正常并发处理。
+初始化数据结构时：第一次put 时才会初始化 node 数组，通过 CAS 决定哪个线程进行初始化，CAS操作保证了设置sizeCtl标记位的原子性，保证了只有一个线程能设置成，同时用 volatile 修饰的 sizeCtl 表示线程竞争的情况
+
+put时：JDK1.8以后，细化锁粒度，一个数组，put的时候如果为null则进行CAS，如果失败说明有人了，此时synchronized对数组元素加锁，然后基于链表或者红黑树插入自己的数据。如果不为null（因为此时数组位置存放的是链表或红黑树的引用，且出现概率很小）则直接synchronized锁然后基于链表或者红黑树插入自己的数据。只有对数组里同一个位置的元素进行操作时，才会加锁串行化处理；如果是对数组里不同的位置元素进行操作，那么可以正常并发处理。
+
+扩容：多线程之间，以volatile的方式读取sizeCtl属性，来判断ConcurrentHashMap当前所处的状态。通过cas设置sizeCtl属性，告知其他线程ConcurrentHashMap的状态变更。
+不同状态，sizeCtl所代表的含义也有所不同。
+* 未初始化：
+    sizeCtl=0：表示没有指定初始容量。
+    sizeCtl>0：表示初始容量。
+* 初始化中：
+    sizeCtl=-1,标记作用，告知其他线程，正在初始化
+* 正常状态：
+    sizeCtl=0.75n ,扩容阈值
+* 扩容中:
+    sizeCtl < 0 : 表示有其他线程正在执行扩容
+    sizeCtl = (resizeStamp(n) << RESIZE_STAMP_SHIFT) + 2 :表示此时只有一个线程在执行扩容
+
+1. 在扩容之前，transferIndex 在数组的最右边 。此时有一个线程发现已经到达扩容阈值，准备开始扩容。
+2. 扩容线程，在迁移数据之前，首先要将transferIndex右移（以cas的方式修改 transferIndex=transferIndex-stride(要迁移hash桶的个数)），获取迁移任务。每个扩容线程都会通过for循环+CAS的方式设置transferIndex，因此可以确保多线程扩容的并发安全。
+
+ForwardingNode:
+1. 标记作用，表示其他线程正在扩容，并且此节点已经扩容完毕
+2. 关联了nextTable,扩容期间可以通过find方法，访问已经迁移到了nextTable中的数据
+
+1. 线程执行put操作，发现容量已经达到扩容阈值，需要进行扩容操作，此时transferindex=tab.length=32
+2. 扩容线程A 以cas的方式修改transferindex=31-16=16 ,然后按照降序迁移table[31]--table[16]这个区间的hash桶
+3. 迁移hash桶时，会将桶内的链表或者红黑树，按照一定算法，拆分成2份，将其插入nextTable[i]和nextTable[i+n]（n是table数组的长度）。 迁移完毕的hash桶,会被设置成ForwardingNode节点，以此告知访问此桶的其他线程，此节点已经迁移完毕。
+4. 此时线程2访问到了ForwardingNode节点，如果线程2执行的put或remove等写操作，那么就会先帮其扩容。如果线程2执行的是get等读方法，则会调用ForwardingNode的find方法，去nextTable里面查找相关元素。
+5. 如果准备加入扩容的线程，发现以下情况，放弃扩容，直接返回。发现transferIndex=0,即所有node均已分配或者发现扩容线程已经达到最大扩容线程数
+
+多线程无锁扩容的关键就是通过CAS设置sizeCtl与transferIndex变量，协调多个线程对table数组中的node进行迁移。它对来帮忙的每一个线程都分配了一块区域，每个线程只能搬运自己所属区域内的元素，这样就互不干扰了。这些线程在帮助分配完元素之后，才会去做自己本来的操作。
+
+计数：利用CAS递增baseCount值来感知是否存在线程竞争，若竞争不大直接CAS递增baseCount值即可，性能与直接baseCount++差别不大
+若存在线程竞争，则初始化计数桶，若此时初始化计数桶的过程中也存在竞争，多个线程同时初始化计数桶，则没有抢到初始化资格的线程直接尝试CAS递增baseCount值的方式完成计数，最大化利用了线程的并行。此时使用计数桶计数，分而治之的方式来计数，此时两个计数桶最大可提供两个线程同时计数，同时使用CAS操作来感知线程竞争，若两个桶情况下CAS操作还是频繁失败（失败3次），则直接扩容计数桶，变为4个计数桶，支持最大同时4个线程并发计数，以此类推…同时使用位运算和随机数的方式"负载均衡"一样的将线程计数请求接近均匀的落在各个计数桶中。
