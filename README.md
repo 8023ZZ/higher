@@ -163,6 +163,7 @@ NavigableMap接口让TreeMap有了对集合内元素的搜索的能力。
 ***
 ### DataBase
 #### <span id="mysql"><a href="/DataBase/MySql.md">MySql</a></span>
+#### <span id="Redis"><a href="/DataBase/Redis.md">Redis</a></span>
 ***
 ### 算法
 ***
