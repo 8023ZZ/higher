@@ -73,4 +73,62 @@ MySql 有预读机制，他从磁盘中加载数据页时，可能会连同这�
 
 LRU 链表会按37开的比例拆分为冷热两个部分，数据页第一次被加载到缓存时，缓存页会被放在冷数据区域的链表头部位置，1s之后如果缓存页被访问，则会被放到热数据区域的链表头部位置
 
-LRU 尾部的缓存页会有定时任务每隔一段时间清空这几个缓存页，将它们刷回磁盘，把他们加入回 free 链表，移出 flush 链表和 LRU 链表
+Mysql 定时任务每隔一段时间清空 LRU 冷数据区域的缓存页以及 flush 链表中的缓存页，将它们刷回磁盘，把他们加入回 free 链表，移出 flush 链表和 LRU 链表
+
+多线程操作同一个 Buffer Pool 的时候需要加锁，因此可以分配多个 Buffer Poll 来提升性能
+
+Mysql 中有 chunk 机制，每个 buffer pool 由一系列 128M 的 chunk 组成，这些 chunk 共享一个 buffer pool 的 free、flush、lru 这些链表，通过 chunk 机制可以在运行时动态调整 buffer pool 的大小
+
+### 磁盘
+变长字段长度（16进制逆序排列）+null 值列（每个bit表示是否为null）+数据头（40bit）+实际数据值
+
+数据头记录本行记录的一些类型以及下一行数据的指针
+
+然后根据字符集编码，转换成一些数字和符号存储在磁盘上，同时会在实际数据值的部分中增加DB_ROW_ID（行唯一标识），DB_TRX_ID(事务ID)，DB_ROLL_PTR(回滚指针)
+
+而一个数据页被拆成了很多部分，包含了文件头、数据页头、最小记录和最大记录、多个数据行、空闲空间、数据页目录、文件尾部
+
+一个表空间对应着一些磁盘上的数据文件，这些磁盘上的数据文件中有很多的数据页
+
+一个数据区对应着连续64个数据页，每个数据页是16KB，一个数据区是1M，256个数据区被划分为一组，每个表空间的第一个组数据区的第一个数据区的前三个数据页都是固定的，存放一些描述性数据。当我们需要执行 curd 操作的时候，说白了就是从磁盘上的表空间的数据文件里，随机访问去加载一些数据页到 Buffer Pool 的缓存页使用
+
+redo log写入是磁盘顺序写，几乎和内存随机读写的性能差不多，redo log 写的越快，sql 语句的性能就越高
+
+### 行溢出
+当一行的数据大于数据页大小16KB时，会发生行溢出，溢出的数据会放到其他的数据页当中
+
+### RAID 存储架构
+RAID 就是一个磁盘冗余阵列，大致理解为用来管理机器的多块磁盘的一种磁盘阵列技术
+
+RAID 还可以实现数据冗余机制，写入同样一份数据，会在两块磁盘上都写入
+
+但是 RAID 锂电池自动充放电会导致数据库服务器 RAID 存储性能出现几十倍的抖动
+
+### Redo Log
+redo log 的日志格式大致为：对表空间XXX的数据页XXX中的偏移量为XXX的地方更新了数据XXX
+
+表空间+数据页号+偏移量+修改几个字段的值+具体的值
+
+redo log 不是单行写入日志文件的，而是通过 redo log block 来存放多个单行日志，redo log block 分为三部分：header（12字节）、body（496字节）、trailer（4字节）
+
+header 可以继续细分：block no（4字节的块唯一编号）、data length（2个字节的已写入数据长度）、first record group（2字节的日志分组偏移量）、checkpoint on（4字节）
+
+每一个redo log 都是写入到redo log磁盘文件里的一个 redo log block里去了，每个redo log block最多放496KB的redo log日志
+
+redo log buffer 是Mysql 启动时向操作系统申请的一段连续的内存空间，里面划分了 n 个redo log block，默认为 16MB 大小，如果所有的 redo log block 全部写满，则会强制把 redo log block 刷入磁盘
+
+一个事务中的所有redo log会等待sql全部执行完成后才会一起写入 redo log block
+
+redo log block 输入磁盘的时机：
+
+1. 如果写入redo log buffer 的日志已经占据了redo log buffer 空间的一半，此时会把他们刷入磁盘空间中
+
+2. 一个事务提交的时候，必须把他的redo log 所在的 redo log block 都刷入到磁盘文件当中，需要设置参数
+
+3. 后台线程定时刷新，有一个线程每隔1s就会把redo log buffer 中的redo log block刷到磁盘文件当中
+
+4. Mysql 关闭的时候，redo log block都会刷入磁盘当中
+
+磁盘中默认会有两个 redo log 文件，写入满后会覆盖另一个文件
+
+### Undo log
