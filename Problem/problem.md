@@ -7,6 +7,15 @@
 
 上线后使用 jstat、jmap、jhat 等在高峰期和低峰期进行检测，查看是否需要优化。或者使用 Zabbix、OpenFalcon、Ganglia 等开源工具进行监控
 
+### 堆外内存溢出
+公司调用第三方固定格式接口时有开发同事创建 byteBuffer 未释放
+
+先通过OOM后⾃动⽣成的堆快照信息通过mat分析可能出现的地⽅和线程的调⽤栈定位到代码⾏
+
+当并发量较⼤时堆内存持有堆外内存引⽤的对象进⼊⽼年代⼀直不能被回收,当通过jdk ByteBuffer.allocateDirect(xx)时java.nio.Bits#reserveMemory尝试的去分配堆外内存,如果堆外内存空间不够时会执⾏⼀次System.gc()通知jvm来进⾏⼀次full gc
+
+但是由于线上jvm参数设置了 -XX:DisableExplicitGC 禁止 system.gc() 导致堆外内存溢出
+
 ### SQL 查询调优
 用户千万级，日活用户百万级
 
