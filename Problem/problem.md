@@ -125,3 +125,5 @@ select * from comments where product_id = 'xx' and is_good_comment = '1' order b
 如果要在分库分表环境下搞分页，最好保证一个主属性粒度是分库分表的粒度
 
 也可以用 tidb 分布式数据库，把分库分表向用户隐藏
+
+### LFU
