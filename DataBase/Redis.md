@@ -20,7 +20,7 @@ RedLock： redis cluster，有 5 个 redis master 实例
 5. 要是锁建立失败了，那么就依次之前建立过的锁删除；
 6. 只要别人建立了一把分布式锁，你就得不断轮询去尝试获取锁。
 
-zk 锁：就是某个节点尝试创建临时 znode，此时创建成功了就获取了这个锁；这个时候别的客户端来创建锁会失败，只能注册个监听器监听这个锁。释放锁就是删除这个 znode，一旦释放掉就会通知客户端，然后有一个等待着的客户端就可以再次重新加锁。
+zk 锁：就是某个节点尝试创建临时 znode，此时创建成功了就获取了这个锁；这个时候别的客户端来创建锁会失败，只能注册个监听器监听这个锁。释放锁就是删除这个 znode，一旦释放掉就会通知客户端，然后有一个等待着的客户端就可以再次重新加锁。curator 框架
 
 也可以采用另一种方式，创建临时顺序节点：如果有一把锁，被多个人给竞争，此时多个人会排队，第一个拿到锁的人会执行，然后释放锁；后面的每个人都会去监听排在自己前面的那个人创建的 node 上，一旦某个人释放了锁，排在自己后面的人就会被 zookeeper 给通知，一旦被通知了之后，就 ok 了，自己就获取到了锁，就可以执行代码了。
 
@@ -68,6 +68,32 @@ Try、Comfirm、Cancel
 6. 这个还是比较合适的，目前国内互联网公司大都是这么玩儿的，要不你举用 RocketMQ 支持的，要不你就自己基于类似 ActiveMQ？RabbitMQ？自己封装一套类似的逻辑出来，总之思路就是这样子的
 
 业务方只需要关注自己本地的事务执行方法，和事务回查方法。其实就是将本地消息表移入到 MQ 内部，解决生产者消息发送与本地事务执行的原子性问题
+
+举例：
+Producer向RocketMQ发送一个half message
+
+RocketMQ返回一个half message success的响应给Producer，这个时候就形成了一个half message了，此时这个message是不能被消费的
+
+注意，这个步骤可能会因为网络等原因失败，可能你没收到RocketMQ返回的响应，那么就需要重试发送half message，直到一个half message成功建立为止
+
+接着Producer本地执行数据库操作
+
+Producer根据本地数据库操作的结果发送commit/rollback给RocketMQ，如果本地数据库执行成功，那么就发送一个commit给RocketMQ，让他把消息变为可以被消费的；如果本地数据库执行失败，那么就发送一个rollback给RocketMQ，废弃之前的message
+
+注意，这个步骤可能失败，就是Producer可能因为网络原因没成功发送commit/rollback给RocketMQ，此时RocketMQ自己过一段时间发现一直没收到message的commit/rollback，就回调你服务提供的一个接口
+
+此时在这个接口里，你需要自己去检查之前执行的本地数据库操作是否成功了，然后返回commit/rollback给RocketMQ
+
+只要message被commit了，此时下游的服务就可以消费到这个消息，此时还需要结合ack机制，下游消费必须是消费成功了返回ack给RocketMQ，才可以认为是成功了，否则一旦失败没有ack，则必须让RocketMQ重新投递message给其他consumer
+
+其他中间件：
+自己写一个可靠消息服务即可，接收人家发送的half message，然后返回响应给人家，如果Producer没收到响应，则重发。然后Producer执行本地事务，接着发送commit/rollback给可靠消息服务。
+
+可靠消息服务启动一个后台线程定时扫描本地数据库表中所有half message，超过一定时间没commit/rollback就回调Producer接口，确认本地事务是否成功，获取commit/rollback
+
+如果消息被rollback就废弃掉，如果消息被commit就发送这个消息给下游服务，或者是发送给RabbitMQ/Kafka/ActiveMQ，都可以，然后下游服务消费了，必须回调可靠消息服务接口进行ack
+
+如果一段时间都没收到ack，则重发消息给下游服务
 
 #### 最大努力通知方案
 1. 系统 A 本地事务执行完之后，发送个消息到 MQ；
