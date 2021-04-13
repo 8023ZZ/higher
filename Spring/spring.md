@@ -137,3 +137,10 @@ ApplicationContext 继承自 beanFactory，但是他不是 BeanFactory 的实现
 13. populateBean 方法进行属性设值，处理依赖
 14. 执行回调，如果实现了 Aware 接口，回调invokeAwareMethods方法，回调 BeanPostProcessor 的 postProcessBeforeInitialization 方法 ，执行 init-method，回调 BeanPostProcessor 的 postProcessAfterInitialization 方法
 15. 广播事件 ApplicationContext 初始化完成
+
+### 动态代理底层原理
+（1）用户通过Proxy.newProxyInstance方法，传入ClassLoader、接口数组、和InvocationHandler实现类（包含具体被代理对象和对其具体处理逻辑）；
+
+（2）底层根据接口数组和InvocationHandler在运行时生成代理类字节码，即代理类实现接口数组，同时组合InvocationHandler，对被代理类添加额外功能；
+
+（3）然后通过传入的ClassLoader进行加载，再实例化后返回，即得到代理对象。
